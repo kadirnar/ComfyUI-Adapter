@@ -1,5 +1,3 @@
-from oms_diffusion.garment_seg.network import U2NET
-
 import torch
 import torchvision.transforms as transforms
 
@@ -83,12 +81,3 @@ def generate_mask(input_image, net, device='cpu'):
         alpha_mask_img = alpha_mask_img.resize(img_size, Image.BICUBIC)
 
     return alpha_mask_img
-
-
-def load_seg_model(checkpoint_path, device='cpu'):
-    net = U2NET(in_ch=3, out_ch=4)
-    net = load_checkpoint(net, checkpoint_path)
-    net = net.to(device)
-    net = net.eval()
-
-    return net

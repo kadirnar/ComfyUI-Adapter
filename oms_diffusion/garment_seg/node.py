@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from .network import U2NET
 
-from huggingface_hub import hf_hub_download
+from huggingface_hub import snapshot_download
 
 base_path = os.path.join(Path(__file__).absolute().parents[2].absolute())
 current_paths = os.path.join(base_path, "checkpoints")
@@ -23,12 +23,17 @@ pth_files = [file for file in os.listdir(current_paths) if file.endswith(".pth")
 
 if not pth_files:
     print("No .pth files found in the 'checkpoints' directory.")
-    # Download the snapshot only if there are no .pth files in the directory
-    output = hf_hub_download(repo_id="TryOnVirtual/ClothSeg", filename="cloth_segm.pth")
+
+    snapshot_download(
+        repo_id="TryOnVirtual/ClothSeg", 
+        repo_type="model", 
+        ignore_patterns=["*.md", "*.gitattributes"],
+        local_dir=current_paths,
+)
+
 else:
     print(".pth files found in the 'checkpoints' directory. Skipping snapshot download.")
     
-breakpoint()
 class Normalize_image(object):
     """Normalize given tensor into given mean and standard dev
 
@@ -132,7 +137,7 @@ class GarmentSeg:
     
 
     def garment_seg_loader(self, cloth_tensor_image):
-        seg_model_path = os.path.join(current_paths, seg_model_path)
+        seg_model_path = os.path.join(current_paths, "cloth_segm.pth")
 
         image = (cloth_tensor_image[0].cpu().numpy() * 255).astype(np.uint8)
         pil_image = Image.fromarray(image)

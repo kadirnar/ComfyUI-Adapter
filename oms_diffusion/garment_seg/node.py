@@ -1,25 +1,15 @@
-import comfyui
 import torch
-import nodes
-
-from oms_diffusion.garment_seg.network import U2NET
-from oms_diffusion.utils.image_utils import prepare_image, prepare_mask
-
+import numpy as np
+import torchvision.transforms.functional as F
 import torchvision.transforms as transforms
+from PIL import Image
+import os
+from pathlib import Path
+from .network import U2NET
 
-def load_checkpoint(model, checkpoint_path):
-    from collections import OrderedDict
-
-    model_state_dict = torch.load(checkpoint_path, map_location=torch.device("cpu"))
-    new_state_dict = OrderedDict()
-    for k, v in model_state_dict.items():
-        name = k[7:]  # remove `module.`
-        new_state_dict[name] = v
-
-    model.load_state_dict(new_state_dict)
-    print("----checkpoints loaded from path: {}----".format(checkpoint_path))
-    return model
-
+# set the models directory
+base_path = os.path.join(Path(__file__).absolute().parents[2].absolute())
+current_paths = os.path.join(base_path, "checkpoints") # TODO: Klasörün olup olmadığını kontrol et.
 
 class Normalize_image(object):
     """Normalize given tensor into given mean and standard dev
@@ -65,8 +55,6 @@ def apply_transform(img):
 
 def generate_mask(input_image, net, device='cpu'):
     import torch.nn.functional as F
-    from PIL import Image
-    import numpy as np
 
 
     img = input_image
@@ -110,29 +98,41 @@ def load_seg_model(checkpoint_path, device='cpu'):
 
     return net
 
-class GarmentSegLoader:
+cloth_segm_name_list = [
+    "checkpoints/cloth_segm.pth",
+    "D:/ComfyUI/ComfyUI/custom_nodes/ComfyUI-Adapter/oms_diffusion/garment_seg/cloth_segm.pth",
+    "oms_diffusion/garment_seg/cloth_segm.pth",
+    "garment_seg/cloth_segm.pth",
+    "cloth_segm.pth",
+]
+
+class GarmentSeg:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "cloth_image": ("IMAGE",),
-                "seg_model_path": ("STRING",),
-                "device": ("STRING",),
-                "height": ("INT",),
-                "width": ("INT",),
+                "cloth_tensor_image": ("IMAGE",{"default":None}),
+                "seg_model_path": (cloth_segm_name_list, {"default": cloth_segm_name_list[0]}),
             },
         }
     
     
-    RETURN_TYPES = ("",)
-    FUNCTION = ""
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "garment_seg_loader"
     CATEGORY = "ComfyUI-Adapter/OmsDiffusion/GarmentSeg"
     
 
-    def garment_seg_loader(self, cloth_image, seg_model_path, device, height, width):
-        segment_model = load_seg_model(seg_model_path, device=device)
-        cloth_mask_image = generate_mask(cloth_image, net=segment_model, device=device)
-        cloth = prepare_image(cloth_image, height, width)
-        cloth_mask = prepare_mask(cloth_mask_image, height, width)
-        cloth = (cloth * cloth_mask).to(self.device, dtype=torch.float16)
+    def garment_seg_loader(self, cloth_tensor_image, seg_model_path,):
+        seg_model_path = os.path.join(current_paths, seg_model_path)
 
+        image = (cloth_tensor_image[0].cpu().numpy() * 255).astype(np.uint8)
+        pil_image = Image.fromarray(image)
+        
+        segment_model = load_seg_model(seg_model_path)
+        
+        cloth_mask_image = generate_mask(pil_image, net=segment_model)
+        npy_cloth_mask_image = np.array(cloth_mask_image).astype(np.float32) / 255.0
+        
+        tensor_cloth_mask_image = torch.tensor(npy_cloth_mask_image).unsqueeze(0)
+
+        return (tensor_cloth_mask_image,)

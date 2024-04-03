@@ -7,10 +7,28 @@ import os
 from pathlib import Path
 from .network import U2NET
 
-# set the models directory
-base_path = os.path.join(Path(__file__).absolute().parents[2].absolute())
-current_paths = os.path.join(base_path, "checkpoints") # TODO: Klasörün olup olmadığını kontrol et.
+from huggingface_hub import hf_hub_download
 
+base_path = os.path.join(Path(__file__).absolute().parents[2].absolute())
+current_paths = os.path.join(base_path, "checkpoints")
+
+# Check if the 'checkpoints' directory exists
+if not os.path.exists(current_paths):
+    os.makedirs(current_paths)
+    print(f"'{current_paths}' directory created successfully.")
+else:
+    print(f"'{current_paths}' directory already exists.")
+
+pth_files = [file for file in os.listdir(current_paths) if file.endswith(".pth")]
+
+if not pth_files:
+    print("No .pth files found in the 'checkpoints' directory.")
+    # Download the snapshot only if there are no .pth files in the directory
+    output = hf_hub_download(repo_id="TryOnVirtual/ClothSeg", filename="cloth_segm.pth")
+else:
+    print(".pth files found in the 'checkpoints' directory. Skipping snapshot download.")
+    
+breakpoint()
 class Normalize_image(object):
     """Normalize given tensor into given mean and standard dev
 
@@ -98,21 +116,12 @@ def load_seg_model(checkpoint_path, device='cpu'):
 
     return net
 
-cloth_segm_name_list = [
-    "checkpoints/cloth_segm.pth",
-    "D:/ComfyUI/ComfyUI/custom_nodes/ComfyUI-Adapter/oms_diffusion/garment_seg/cloth_segm.pth",
-    "oms_diffusion/garment_seg/cloth_segm.pth",
-    "garment_seg/cloth_segm.pth",
-    "cloth_segm.pth",
-]
-
 class GarmentSeg:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
                 "cloth_tensor_image": ("IMAGE",{"default":None}),
-                "seg_model_path": (cloth_segm_name_list, {"default": cloth_segm_name_list[0]}),
             },
         }
     
@@ -122,7 +131,7 @@ class GarmentSeg:
     CATEGORY = "ComfyUI-Adapter/OmsDiffusion/GarmentSeg"
     
 
-    def garment_seg_loader(self, cloth_tensor_image, seg_model_path,):
+    def garment_seg_loader(self, cloth_tensor_image):
         seg_model_path = os.path.join(current_paths, seg_model_path)
 
         image = (cloth_tensor_image[0].cpu().numpy() * 255).astype(np.uint8)
